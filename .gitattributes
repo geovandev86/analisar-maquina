@@ -1,0 +1,2 @@
+# O .bat precisa de quebras de linha do Windows (CRLF) para funcionar no cmd
+*.bat text eol=crlf

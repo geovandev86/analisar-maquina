@@ -1,0 +1,5 @@
+# Relatórios gerados (contêm dados das máquinas analisadas)
+Relatorios/
+
+# Ferramentas de terceiros baixadas automaticamente pelo .bat
+Ferramentas/
