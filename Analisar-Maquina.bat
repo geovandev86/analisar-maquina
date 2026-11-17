@@ -38,15 +38,31 @@ $desde   = (Get-Date).AddDays(-$dias)
 $LIM_CPU = 65; $LIM_HDD = 55; $LIM_SSD = 46
 $PING_GIGA = 2; $PING_FAST = 12
 
-$L       = New-Object System.Collections.Generic.List[string]
+$L       = New-Object System.Collections.Generic.List[string]   # relatorio em texto
+$Rel       = New-Object System.Collections.Generic.List[object]   # mesmo conteudo, estruturado (para o PDF)
 $Alertas = New-Object System.Collections.Generic.List[object]
 
-function W([string]$t = '', [string]$cor = 'Gray') { $L.Add($t); Write-Host $t -ForegroundColor $cor }
-function Secao([string]$t) { W ''; W ('=' * 74) 'Cyan'; W ('  ' + $t.ToUpper()) 'Cyan'; W ('=' * 74) 'Cyan' }
-function Ok([string]$t)    { W "  [OK]      $t" 'Green' }
-function Info([string]$t)  { W "  [INFO]    $t" 'Gray' }
-function Alerta([string]$t, [string]$tipo) { W "  [ALERTA]  $t" 'Yellow'; $Alertas.Add([pscustomobject]@{ Tipo = $tipo; Texto = $t }) }
-function Item([string]$k, $v) { W ('  {0,-30}: {1}' -f $k, $v) }
+function Txt([string]$t = '', [string]$cor = 'Gray') { $L.Add($t); Write-Host $t -ForegroundColor $cor }
+function W([string]$t = '', [string]$cor = 'Gray') { Txt $t $cor; $Rel.Add(@{ T = 'txt'; X = $t }) }
+function Secao([string]$t) { Txt ''; Txt ('=' * 74) 'Cyan'; Txt ('  ' + $t.ToUpper()) 'Cyan'; Txt ('=' * 74) 'Cyan'; $Rel.Add(@{ T = 'sec'; X = $t }) }
+function Ok([string]$t)    { Txt "  [OK]      $t" 'Green'; $Rel.Add(@{ T = 'ok'; X = $t }) }
+function Info([string]$t)  { Txt "  [INFO]    $t" 'Gray';  $Rel.Add(@{ T = 'info'; X = $t }) }
+function Alerta([string]$t, [string]$tipo) { Txt "  [ALERTA]  $t" 'Yellow'; $Rel.Add(@{ T = 'alerta'; X = $t }); $Alertas.Add([pscustomobject]@{ Tipo = $tipo; Texto = $t }) }
+function Item([string]$k, $v) { Txt ('  {0,-30}: {1}' -f $k, $v); $Rel.Add(@{ T = 'kv'; K = $k.Trim(); V = "$v"; Sub = $k.StartsWith(' ') }) }
+
+$GRUPOS = [ordered]@{
+    hw   = 'HARDWARE - indícios de falha física'
+    sw   = 'WINDOWS / SOFTWARE'
+    perf = 'DESEMPENHO / CONFIGURAÇÃO'
+    net  = 'REDE'
+}
+$CONCL = [ordered]@{
+    hw   = 'Há indícios de FALHA FÍSICA: orientar o cliente a procurar um técnico de hardware.'
+    sw   = 'Problema de SOFTWARE: reinstalar/reconfigurar o programa, atualizar o Windows ou reparar o sistema (DISM /Online /Cleanup-Image /RestoreHealth + sfc /scannow).'
+    perf = 'DESEMPENHO: avaliar se a configuração atende o uso diário (SSD, mais RAM), fechar programas pesados e reduzir os programas de inicialização.'
+    net  = 'REDE: trocar cabo/porta do switch, rodar este .bat em outro PC para comparar e verificar o servidor.'
+}
+$CONCL_OK = 'Máquina sem problemas aparentes. Se o sintoma persistir, acompanhar em tempo real com o Gerenciador de Tarefas + HWMonitor no momento em que o problema ocorrer.'
 function Ev($log, $ids, $provRegex) {
     $h = @{ LogName = $log; StartTime = $desde }
     if ($ids) { $h.Id = $ids }
@@ -800,45 +816,140 @@ foreach ($tAlvo in @(@($alvos | Select-Object -First 1) + 'google.com.br')) {
 #  RESUMO
 # --------------------------------------------------------------------
 Secao 'Resumo e interpretação dos resultados'
-$grupos = [ordered]@{
-    hw   = 'HARDWARE - indícios de falha física'
-    sw   = 'WINDOWS / SOFTWARE'
-    perf = 'DESEMPENHO / CONFIGURAÇÃO'
-    net  = 'REDE'
-}
 if (-not $Alertas.Count) { Ok 'Nenhum problema evidente encontrado nos testes automáticos.' }
-foreach ($k in $grupos.Keys) {
+foreach ($k in $GRUPOS.Keys) {
     $itens = @($Alertas | Where-Object { $_.Tipo -eq $k })
     if (-not $itens.Count) { continue }
     W ''
-    W "  >> $($grupos[$k]) ($($itens.Count))" 'Yellow'
+    W "  >> $($GRUPOS[$k]) ($($itens.Count))" 'Yellow'
     $itens | ForEach-Object { W "     - $($_.Texto)" }
 }
 W ''
 W '  CONCLUSÃO:' 'Cyan'
 $tipos = @($Alertas | ForEach-Object { $_.Tipo } | Select-Object -Unique)
-if ('hw' -in $tipos)   { W '   * Há indícios de FALHA FÍSICA: orientar o cliente a procurar um técnico de hardware.' 'Yellow' }
-if ('sw' -in $tipos)   { W '   * Problema de SOFTWARE: reinstalar/reconfigurar o programa, atualizar o Windows ou reparar' 'Yellow'
-                         W '     o sistema (DISM /Online /Cleanup-Image /RestoreHealth + sfc /scannow).' 'Yellow' }
-if ('perf' -in $tipos) { W '   * DESEMPENHO: avaliar se a configuração atende o uso diário (SSD, mais RAM), fechar' 'Yellow'
-                         W '     programas pesados e reduzir os programas de inicialização.' 'Yellow' }
-if ('net' -in $tipos)  { W '   * REDE: trocar cabo/porta do switch, rodar este .bat em outro PC para comparar e' 'Yellow'
-                         W '     verificar o servidor.' 'Yellow' }
-if (-not $tipos.Count) { W '   * Máquina sem problemas aparentes. Se o sintoma persistir, acompanhar em tempo real' 'Green'
-                         W '     com o Gerenciador de Tarefas + HWMonitor no momento em que o problema ocorrer.' 'Green' }
+foreach ($k in $CONCL.Keys) { if ($k -in $tipos) { W "   * $($CONCL[$k])" 'Yellow' } }
+if (-not $tipos.Count) { W "   * $CONCL_OK" 'Green' }
+$REFS = "Referências: CPU até $LIM_CPU °C | HD até $LIM_HDD °C | SSD até $LIM_SSD °C | ping até ~$PING_GIGA ms (Gigabit) ou ~$PING_FAST ms (FastEthernet), sem perda de pacotes. Teste de rede: comparar entre 2 ou mais PCs."
 W ''
-W "  Referências: CPU até $LIM_CPU °C | HD até $LIM_HDD °C | SSD até $LIM_SSD °C | ping até ~$PING_GIGA ms (Gigabit)" 'DarkGray'
-W "  ou ~$PING_FAST ms (FastEthernet), sem perda de pacotes. Teste de rede: comparar entre 2 ou mais PCs." 'DarkGray'
+W "  $REFS" 'DarkGray'
 
 if ($cdiTexto) {
     $L.Add(''); $L.Add('=' * 74); $L.Add('  ANEXO - RELATÓRIO COMPLETO DO CRYSTALDISKINFO'); $L.Add('=' * 74)
     foreach ($ln in $cdiTexto) { $L.Add($ln) }
+    $Rel.Add(@{ T = 'anexo'; X = 'Anexo - relatório completo do CrystalDiskInfo'; Linhas = @($cdiTexto) })
+}
+
+# --------------------------------------------------------------------
+#  RELATORIO FORMATADO (HTML -> PDF pelo Microsoft Edge)
+# --------------------------------------------------------------------
+function Hx([string]$s) { [Net.WebUtility]::HtmlEncode($s) }
+function GerarHtml {
+    $css = @'
+@page { size: A4; margin: 13mm 12mm; }
+:root { --azul:#1f4e79; --verde:#1e7b34; --amarelo:#a15c07; --vermelho:#b42318; --cinza:#5f6b7a; --borda:#d9dee5; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; color: #1d2733; background: #fff; margin: 0; }
+header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--azul); padding-bottom: 8px; margin-bottom: 10px; }
+h1 { font-size: 16pt; margin: 0; color: var(--azul); }
+.sub { color: var(--cinza); font-size: 9pt; margin-top: 3px; }
+.selo { font-weight: 700; padding: 7px 14px; border-radius: 6px; font-size: 10pt; white-space: nowrap; }
+.selo.ok { background: #e6f4ea; color: var(--verde); } .selo.warn { background: #fff4e0; color: var(--amarelo); } .selo.hw { background: #fdecea; color: var(--vermelho); }
+h2 { font-size: 11pt; color: #fff; background: var(--azul); padding: 4px 9px; border-radius: 4px; margin: 14px 0 6px; break-after: avoid; }
+h3 { font-size: 10pt; margin: 8px 0 3px; }
+h4 { font-size: 9.5pt; margin: 9px 0 3px; color: var(--azul); break-after: avoid; }
+.kv { display: grid; grid-template-columns: 215px 1fr; gap: 8px; padding: 2px 4px; border-bottom: 1px solid #eef1f4; break-inside: avoid; }
+.kv span:first-child { color: var(--cinza); } .kv.sub span:first-child { padding-left: 14px; }
+.st { display: flex; gap: 8px; align-items: flex-start; padding: 3px 4px; break-inside: avoid; }
+.st b { font-size: 7.5pt; padding: 1px 0; border-radius: 3px; width: 52px; text-align: center; flex: none; margin-top: 1px; }
+.st.ok b { background: #e6f4ea; color: var(--verde); } .st.al b { background: #fff1d6; color: var(--amarelo); } .st.in b { background: #eef1f4; color: var(--cinza); }
+.st.al span { font-weight: 600; }
+pre { font-family: Consolas, 'Courier New', monospace; font-size: 7.6pt; background: #f6f8fa; border: 1px solid var(--borda); border-radius: 4px; padding: 6px 8px; margin: 4px 0; white-space: pre-wrap; word-break: break-word; }
+.grupo { border-left: 4px solid; padding: 4px 10px; margin: 6px 0; background: #fafbfc; break-inside: avoid; }
+.g-hw { border-color: var(--vermelho); } .g-sw { border-color: #6941c6; } .g-perf { border-color: var(--amarelo); } .g-net { border-color: #1570ef; }
+.grupo ul, ul.concl { margin: 3px 0; padding-left: 18px; } li { margin: 2px 0; }
+.ref { color: var(--cinza); font-size: 8pt; }
+.okmsg { color: var(--verde); font-weight: 600; }
+footer { color: var(--cinza); font-size: 7.5pt; text-align: center; margin-top: 14px; border-top: 1px solid var(--borda); padding-top: 5px; }
+'@
+    $sb = New-Object Text.StringBuilder
+    $add = { param($s) [void]$sb.Append($s) }
+    & $add "<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><title>Análise $(Hx $env:COMPUTERNAME)</title><style>$css</style></head><body>"
+
+    # Cabecalho com selo de status
+    $nHw = @($Alertas | Where-Object { $_.Tipo -eq 'hw' }).Count
+    if (-not $Alertas.Count) { $selo = 'ok'; $seloTxt = 'Sem problemas aparentes' }
+    elseif ($nHw) { $selo = 'hw'; $seloTxt = "$($Alertas.Count) alerta(s) - possível falha física" }
+    else { $selo = 'warn'; $seloTxt = "$($Alertas.Count) alerta(s)" }
+    $sub = "$(Hx $env:COMPUTERNAME) · $(Get-Date -Format 'dd/MM/yyyy HH:mm')"
+    if ($sintoma) { $sub += " · Sintoma: $(Hx $sintoma)" }
+    & $add "<header><div><h1>Relatório de análise da máquina</h1><div class='sub'>$sub</div></div><div class='selo $selo'>$(Hx $seloTxt)</div></header>"
+
+    # Resumo no topo
+    & $add "<h2>Resumo e conclusão</h2>"
+    if (-not $Alertas.Count) { & $add "<p class='okmsg'>Nenhum problema evidente encontrado nos testes automáticos.</p>" }
+    foreach ($k in $GRUPOS.Keys) {
+        $itens = @($Alertas | Where-Object { $_.Tipo -eq $k })
+        if (-not $itens.Count) { continue }
+        & $add "<div class='grupo g-$k'><h3>$(Hx $GRUPOS[$k]) ($($itens.Count))</h3><ul>"
+        foreach ($it in $itens) { & $add "<li>$(Hx $it.Texto)</li>" }
+        & $add '</ul></div>'
+    }
+    $tps = @($Alertas | ForEach-Object { $_.Tipo } | Select-Object -Unique)
+    & $add '<h3>Conclusão</h3><ul class="concl">'
+    foreach ($k in $CONCL.Keys) { if ($k -in $tps) { & $add "<li>$(Hx $CONCL[$k])</li>" } }
+    if (-not $tps.Count) { & $add "<li>$(Hx $CONCL_OK)</li>" }
+    & $add "</ul><p class='ref'>$(Hx $REFS)</p>"
+
+    # Demais secoes, na ordem em que foram analisadas
+    $pre = New-Object System.Collections.Generic.List[string]
+    $fechaPre = { if ($pre.Count) { & $add ('<pre>' + (Hx ($pre -join "`n")) + '</pre>'); $pre.Clear() } }
+    $pular = $false
+    foreach ($e in $Rel) {
+        if ($e.T -eq 'sec') { & $fechaPre; $pular = ($e.X -like 'Resumo*'); if (-not $pular) { & $add "<h2>$(Hx $e.X)</h2>" }; continue }
+        if ($pular) { continue }
+        if ($e.T -eq 'txt') {
+            $x = $e.X -replace '^  ', ''
+            $tr = $x.Trim()
+            if (-not $tr) { continue }
+            if ($tr -match '^(Consultando|Verificando|Executando) ') { continue }   # mensagens de progresso
+            if ($x -notmatch '^\s' -and ($tr -match ':$' -or $tr -match '\.\.\.$' -or $tr -match '^Disco \d+:')) { & $fechaPre; & $add "<h4>$(Hx ($tr -replace '\.\.\.$', ''))</h4>"; continue }
+            $pre.Add($x); continue
+        }
+        & $fechaPre
+        switch ($e.T) {
+            'ok'     { & $add "<div class='st ok'><b>OK</b><span>$(Hx $e.X)</span></div>" }
+            'alerta' { & $add "<div class='st al'><b>ALERTA</b><span>$(Hx $e.X)</span></div>" }
+            'info'   { & $add "<div class='st in'><b>INFO</b><span>$(Hx $e.X)</span></div>" }
+            'kv'     { & $add "<div class='kv$(if ($e.Sub) { ' sub' })'><span>$(Hx $e.K)</span><span>$(Hx $e.V)</span></div>" }
+            'anexo'  { & $add "<h2>$(Hx $e.X)</h2><pre>$(Hx ($e.Linhas -join "`n"))</pre>" }
+        }
+    }
+    & $fechaPre
+    & $add "<footer>Gerado por Analisar-Maquina.bat · baseado no artigo &quot;Como analisar uma máquina&quot;</footer></body></html>"
+    $sb.ToString()
+}
+
+function HtmlParaPdf([string]$html, [string]$pdf) {
+    $nav = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+             "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+             "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if (-not $nav) { return $false }
+    $perfil = Join-Path $env:TEMP ('am_pdf_' + [guid]::NewGuid().ToString('N'))
+    $uri = ([Uri]$html).AbsoluteUri
+    $arg = @('--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
+             "--user-data-dir=`"$perfil`"", '--no-pdf-header-footer', '--print-to-pdf-no-header', "--print-to-pdf=`"$pdf`"", "`"$uri`"")
+    Remove-Item -LiteralPath $pdf -Force -ErrorAction SilentlyContinue
+    $p = Start-Process -FilePath $nav -ArgumentList $arg -PassThru -WindowStyle Hidden
+    if ($p -and -not $p.WaitForExit(60000)) { try { $p.Kill() } catch {} }
+    for ($i = 0; $i -lt 20 -and -not (Test-Path -LiteralPath $pdf); $i++) { Start-Sleep -Milliseconds 500 }
+    Remove-Item -LiteralPath $perfil -Recurse -Force -ErrorAction SilentlyContinue
+    (Test-Path -LiteralPath $pdf) -and ((Get-Item -LiteralPath $pdf).Length -gt 1000)
 }
 
 # --------------------------------------------------------------------
 #  SALVAR RELATORIO
 # --------------------------------------------------------------------
-$nome = 'Analise_{0}_{1}.txt' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyy-MM-dd_HH-mm')
+$nome = 'Analise_{0}_{1}' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyy-MM-dd_HH-mm')
 $destinos = @()
 if ($batDir) { $destinos += (Join-Path $batDir 'Relatorios') }
 $destinos += [Environment]::GetFolderPath('Desktop')
@@ -846,15 +957,25 @@ $arq = $null
 foreach ($dst in $destinos) {
     try {
         if (-not (Test-Path -LiteralPath $dst)) { New-Item -ItemType Directory -Path $dst -Force -ErrorAction Stop | Out-Null }
-        $tmp = Join-Path $dst $nome
+        $tmp = Join-Path $dst "$nome.txt"
         [IO.File]::WriteAllLines($tmp, $L, (New-Object Text.UTF8Encoding $true))
         $arq = $tmp; break
     } catch {}
 }
 Write-Host ''
 if ($arq) {
-    Write-Host "  Relatório salvo em: $arq" -ForegroundColor Green
-    if (-not $auto) { Start-Process notepad.exe -ArgumentList "`"$arq`"" }
+    $html = [IO.Path]::ChangeExtension($arq, '.html')
+    $pdf  = [IO.Path]::ChangeExtension($arq, '.pdf')
+    $abrir = $arq
+    try {
+        [IO.File]::WriteAllText($html, (GerarHtml), (New-Object Text.UTF8Encoding $true))
+        Write-Host '  Gerando o PDF...' -ForegroundColor Cyan
+        if (HtmlParaPdf $html $pdf) { Remove-Item -LiteralPath $html -Force; $abrir = $pdf }
+        else { Write-Host '  Não foi possível gerar o PDF (Edge/Chrome não encontrado) - relatório salvo em HTML.' -ForegroundColor Yellow; $abrir = $html }
+    } catch { Write-Host "  Erro ao gerar o relatório formatado: $($_.Exception.Message)" -ForegroundColor Yellow }
+    Write-Host "  Relatório salvo em: $abrir" -ForegroundColor Green
+    if ($abrir -ne $arq) { Write-Host "  (versão em texto: $arq)" -ForegroundColor DarkGray }
+    if (-not $auto) { Start-Process -FilePath $abrir }
 } else { Write-Host '  Não foi possível salvar o relatório.' -ForegroundColor Red }
 
 # --------------------------------------------------------------------

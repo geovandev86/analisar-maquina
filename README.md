@@ -1,13 +1,13 @@
 # Analisar-Maquina
 
-Script `.bat` que faz sozinho o checklist do artigo **"Como analisar uma máquina"** da base de conhecimento SkyTech e gera um relatório em `.txt`.
+Script `.bat` que faz sozinho o checklist do artigo **"Como analisar uma máquina"** da base de conhecimento SkyTech e gera um relatório em **PDF** (e também em `.txt`).
 
 ## Como usar
 
 1. Copie a pasta para a máquina (pendrive, AnyDesk ou rede).
 2. Dê dois cliques em `Analisar-Maquina.bat` e clique em **Sim** na permissão de administrador.
 3. Responda às perguntas: sintoma, se quer rodar o SFC e quais equipamentos testar na rede (Enter aceita a sugestão).
-4. No final, o relatório abre no Bloco de Notas e fica salvo em `Relatorios\`.
+4. No final, o relatório em **PDF** abre sozinho e fica salvo em `Relatorios\`, junto com uma versão em `.txt` para colar no chamado. O PDF é gerado pelo Microsoft Edge, que já vem no Windows; a primeira página traz o resumo dos alertas e a conclusão.
 
 > Se aparecer "O Windows protegeu o computador", clique em **Mais informações > Executar assim mesmo**.
 
