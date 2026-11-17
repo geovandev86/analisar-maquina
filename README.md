@@ -7,7 +7,15 @@ Script `.bat` que faz sozinho o checklist do artigo **"Como analisar uma máquin
 1. Copie a pasta para a máquina (pendrive, AnyDesk ou rede).
 2. Dê dois cliques em `Analisar-Maquina.bat` e clique em **Sim** na permissão de administrador.
 3. Responda às perguntas: sintoma, se quer rodar o SFC e quais equipamentos testar na rede (Enter aceita a sugestão).
-4. No final, o relatório em **PDF** abre sozinho e fica salvo em `Relatorios\`, junto com uma versão em `.txt` para colar no chamado. O PDF é gerado pelo Microsoft Edge, que já vem no Windows; a primeira página traz o resumo dos alertas e a conclusão.
+4. No final, dois PDFs abrem sozinhos e ficam salvos em `Relatorios\` (junto com uma versão em `.txt` para colar no chamado):
+   - **Relatório de análise**: nota da máquina de 0 a 100, painel de saúde por área (verde / amarelo / vermelho), os problemas explicados em palavras simples e, no final, os detalhes técnicos.
+   - **Relatório de melhorias**: plano de ação por prioridade (fazer agora / próximos dias / quando possível), com o porquê, como fazer, investimento estimado e quem faz, a configuração atual da máquina e boas práticas de manutenção.
+
+   Os PDFs são gerados pelo Microsoft Edge, que já vem no Windows.
+
+## Sua logo nos relatórios
+
+Coloque a logo da sua empresa como `logo.png` (ou `.jpg` / `.svg`) na mesma pasta do `.bat`. O nome da empresa e a frase do rodapé ficam nas variáveis `$EMPRESA` e `$SLOGAN`, no começo da parte PowerShell do `.bat`. A logo não vai para o repositório (está no `.gitignore`).
 
 > Se aparecer "O Windows protegeu o computador", clique em **Mais informações > Executar assim mesmo**.
 

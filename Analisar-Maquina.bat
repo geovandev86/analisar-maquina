@@ -47,7 +47,7 @@ function W([string]$t = '', [string]$cor = 'Gray') { Txt $t $cor; $Rel.Add(@{ T 
 function Secao([string]$t) { Txt ''; Txt ('=' * 74) 'Cyan'; Txt ('  ' + $t.ToUpper()) 'Cyan'; Txt ('=' * 74) 'Cyan'; $Rel.Add(@{ T = 'sec'; X = $t }) }
 function Ok([string]$t)    { Txt "  [OK]      $t" 'Green'; $Rel.Add(@{ T = 'ok'; X = $t }) }
 function Info([string]$t)  { Txt "  [INFO]    $t" 'Gray';  $Rel.Add(@{ T = 'info'; X = $t }) }
-function Alerta([string]$t, [string]$tipo) { Txt "  [ALERTA]  $t" 'Yellow'; $Rel.Add(@{ T = 'alerta'; X = $t }); $Alertas.Add([pscustomobject]@{ Tipo = $tipo; Texto = $t }) }
+function Alerta([string]$t, [string]$tipo) { Txt "  [ALERTA]  $t" 'Yellow'; $Rel.Add(@{ T = 'alerta'; X = $t }); $Alertas.Add([pscustomobject]@{ Tipo = $tipo; Texto = $t; Chave = (ChaveAlerta $t) }) }
 function Item([string]$k, $v) { Txt ('  {0,-30}: {1}' -f $k, $v); $Rel.Add(@{ T = 'kv'; K = $k.Trim(); V = "$v"; Sub = $k.StartsWith(' ') }) }
 
 $GRUPOS = [ordered]@{
@@ -63,6 +63,115 @@ $CONCL = [ordered]@{
     net  = 'REDE: trocar cabo/porta do switch, rodar este .bat em outro PC para comparar e verificar o servidor.'
 }
 $CONCL_OK = 'Máquina sem problemas aparentes. Se o sintoma persistir, acompanhar em tempo real com o Gerenciador de Tarefas + HWMonitor no momento em que o problema ocorrer.'
+
+# --------------------------------------------------------------------
+#  EMPRESA (aparece nos relatorios em PDF) - a logo e o arquivo logo.png na pasta do .bat
+# --------------------------------------------------------------------
+$EMPRESA = 'GL Tech'
+$SLOGAN  = 'Técnico de informática e suporte de TI'
+
+# --------------------------------------------------------------------
+#  INTERPRETACAO: areas, catalogo de problemas (linguagem simples) e nota
+# --------------------------------------------------------------------
+$AREAS = [ordered]@{
+    estab   = @{ Nome = 'Estabilidade e memória';     Ok = 'Sem telas azuis, desligamentos inesperados ou erros de hardware.' }
+    disco   = @{ Nome = 'Disco (HD / SSD)';           Ok = 'Disco saudável, sem erros e com espaço livre suficiente.' }
+    temp    = @{ Nome = 'Processador e temperatura';  Ok = 'Processador sem superaquecimento e sem redução de velocidade.' }
+    windows = @{ Nome = 'Windows e atualizações';     Ok = 'Windows com suporte, sem arquivos corrompidos e atualizado.' }
+    desemp  = @{ Nome = 'Desempenho e configuração';  Ok = 'Processador, memória e disco dão conta do uso atual.' }
+    rede    = @{ Nome = 'Rede e internet';            Ok = 'Rede e internet respondendo normalmente.' }
+}
+$NOTAS = @{}   # observacoes por area (ex.: item nao verificado sem administrador)
+function Nota([string]$area, [string]$txt) { if (-not $NOTAS.ContainsKey($area)) { $NOTAS[$area] = @() }; $NOTAS[$area] += $txt }
+
+$PRIO = @{
+    1 = @{ Nome = 'Urgente';     Cls = 'p1'; Grupo = 'Fazer agora';               Desc = 'risco de parar de funcionar ou de perder dados' }
+    2 = @{ Nome = 'Importante';  Cls = 'p2'; Grupo = 'Fazer nos próximos dias';   Desc = 'afeta o desempenho ou a segurança' }
+    3 = @{ Nome = 'Recomendado'; Cls = 'p3'; Grupo = 'Quando for possível';       Desc = 'ajustes simples que deixam o computador melhor' }
+}
+
+function Mk($area, $prio, $titulo, $explica, $acao, $custo, $quem) { @{ Area = $area; Prio = $prio; Titulo = $titulo; Explica = $explica; Acao = $acao; Custo = $custo; Quem = $quem } }
+$CAT = @{
+    bsod           = Mk 'estab' 1 'O Windows travou com tela azul' 'A tela azul acontece quando o Windows encontra um erro grave e precisa reiniciar. As causas mais comuns são memória RAM com defeito, driver com problema ou arquivos do Windows corrompidos.' 'Testar a memória RAM (Win+R > mdsched.exe), atualizar os drivers e reparar o Windows (DISM + SFC). Se continuar, levar a um técnico de hardware.' 'Sem custo a médio' 'Técnico'
+    kp41           = Mk 'estab' 2 'O computador desligou sozinho' 'O Windows registrou desligamentos que não foram feitos pelo menu Iniciar. Pode ser queda de energia, fonte com defeito, superaquecimento ou o computador travado e desligado no botão.' 'Ligar o computador em nobreak ou estabilizador, verificar a fonte e a temperatura e fazer limpeza interna. Orientar a desligar sempre pelo menu Iniciar.' 'Baixo a médio' 'Técnico / usuário'
+    whea           = Mk 'estab' 1 'Erros de hardware registrados' 'O processador ou a placa-mãe avisaram o Windows sobre falhas de hardware. Isso costuma vir antes de travamentos e telas azuis.' 'Levar a um técnico de hardware para testar memória, processador e placa-mãe.' 'Médio' 'Técnico'
+    memerro        = Mk 'estab' 1 'Memória RAM com defeito' 'O teste de memória do Windows encontrou erros. Memória com defeito causa travamentos, telas azuis e arquivos corrompidos.' 'Trocar o(s) pente(s) de memória com defeito.' 'Médio' 'Técnico'
+    crash          = Mk 'windows' 3 'Programas fechando sozinhos' 'Alguns programas fecharam inesperadamente várias vezes no último mês.' 'Atualizar ou reinstalar os programas que mais travaram (lista nos detalhes técnicos).' 'Sem custo' 'Técnico'
+    disco_falha    = Mk 'disco' 1 'Disco com sinais de defeito' 'O disco (HD ou SSD) é onde ficam o Windows e todos os arquivos. Os sinais encontrados indicam risco real de perder dados e de o computador parar de ligar.' 'Fazer BACKUP dos arquivos imediatamente e trocar o disco, de preferência por um SSD.' 'Médio' 'Técnico'
+    disco_temp     = Mk 'disco' 2 'Disco esquentando acima do ideal' 'Calor em excesso diminui a vida útil do disco e pode causar falhas.' 'Melhorar a ventilação, limpar a poeira e verificar se as ventoinhas estão funcionando.' 'Baixo' 'Técnico'
+    ssd_desgaste   = Mk 'disco' 2 'SSD perto do fim da vida útil' 'Todo SSD tem um limite de gravações, e este já usou quase todo esse limite.' 'Planejar a troca do SSD e manter o backup em dia.' 'Médio' 'Técnico'
+    hdd_sistema    = Mk 'desemp' 2 'Windows instalado em HD (disco lento)' 'HDs mecânicos são muito mais lentos que SSDs. É a causa mais comum de lentidão para ligar o computador e abrir programas.' 'Trocar o HD por um SSD, copiando o sistema (clonagem). É a melhoria com o melhor custo-benefício.' 'Médio' 'Técnico'
+    pouco_espaco   = Mk 'desemp' 2 'Pouco espaço livre no disco' 'Com o disco quase cheio o Windows fica lento e as atualizações falham.' 'Liberar espaço: Limpeza de Disco, apagar arquivos temporários e downloads antigos, mover fotos e vídeos para HD externo ou nuvem.' 'Sem custo' 'Usuário / técnico'
+    ram_pouca      = Mk 'desemp' 2 'Pouca memória RAM' 'A memória RAM é onde os programas abertos trabalham. Com pouca memória, o computador fica lento ao usar vários programas ao mesmo tempo.' 'Instalar mais memória: no mínimo 8 GB, ou 16 GB para uso pesado. O técnico confirma o tipo de pente compatível.' 'Médio' 'Técnico'
+    uptime         = Mk 'desemp' 3 'Computador sem reiniciar há muitos dias' 'Ficar muitos dias sem reiniciar acumula programas presos na memória e deixa atualizações pela metade.' 'Reiniciar o computador pelo menos uma vez por semana, ou desligar no fim do expediente.' 'Sem custo' 'Usuário'
+    win10          = Mk 'windows' 1 'Windows sem suporte da Microsoft' 'O Windows 10 não recebe correções de segurança desde 14/10/2025. O computador fica mais exposto a vírus e invasões.' 'Atualizar para o Windows 11 (se o computador for compatível) ou planejar a troca do equipamento.' 'Médio a alto' 'Técnico'
+    win11old       = Mk 'windows' 2 'Versão do Windows desatualizada' 'Esta versão do Windows 11 não recebe mais correções de segurança.' 'Atualizar o Windows 11 para a versão mais recente pelo Windows Update.' 'Sem custo' 'Técnico'
+    cpu_temp       = Mk 'temp' 1 'Processador superaquecendo' 'Acima de 65 °C o processador reduz a velocidade para se proteger e pode até desligar o computador.' 'Fazer limpeza interna, trocar a pasta térmica e verificar as ventoinhas.' 'Baixo' 'Técnico'
+    throttle       = Mk 'temp' 3 'Processador reduzindo a velocidade' 'O processador diminuiu a velocidade algumas vezes, normalmente por calor ou por economia de energia.' 'Conferir a temperatura no HWMonitor e o plano de energia; fazer limpeza interna se estiver quente.' 'Sem custo a baixo' 'Técnico'
+    plano_energia  = Mk 'desemp' 3 'Modo de economia de energia ligado' 'Nesse modo o Windows limita o desempenho do computador para gastar menos energia.' 'Mudar o plano de energia para "Equilibrado" ou "Alto desempenho".' 'Sem custo' 'Técnico'
+    win_corrompido = Mk 'windows' 2 'Arquivos do Windows corrompidos' 'Arquivos do próprio Windows estão danificados, o que causa erros, lentidão e travamentos.' 'Reparar o Windows (DISM /RestoreHealth e depois sfc /scannow). Se não resolver, reinstalar o Windows.' 'Sem custo' 'Técnico'
+    reboot_pend    = Mk 'windows' 3 'Atualização esperando reinício' 'O Windows instalou atualizações que só terminam depois de reiniciar.' 'Reiniciar o computador.' 'Sem custo' 'Usuário'
+    sem_update     = Mk 'windows' 2 'Windows sem atualizar há muito tempo' 'As atualizações trazem correções de segurança e de problemas. Ficar sem atualizar deixa o computador vulnerável.' 'Rodar o Windows Update e deixar as atualizações automáticas ligadas.' 'Sem custo' 'Técnico'
+    update_pend    = Mk 'windows' 3 'Atualizações pendentes' 'Há atualizações disponíveis que ainda não foram instaladas. Algumas corrigem problemas e falhas de segurança.' 'Instalar as atualizações pelo Windows Update, fora do horário de uso.' 'Sem custo' 'Técnico'
+    cpu_alta       = Mk 'desemp' 2 'Processador sobrecarregado' 'Durante a análise o processador trabalhou quase no limite, o que deixa tudo lento.' 'Ver nos detalhes técnicos quais programas mais usam o processador e fechar ou desinstalar o que não for necessário. Se for o uso normal, avaliar um computador mais potente.' 'Sem custo a alto' 'Técnico'
+    proc_pesado    = Mk 'desemp' 3 'Programa usando muito o processador' 'Um único programa estava usando boa parte do processador.' 'Verificar se esse programa é necessário; se não for, fechar ou desinstalar. Se for, procurar atualização dele.' 'Sem custo' 'Técnico'
+    mem_cheia      = Mk 'desemp' 2 'Memória quase cheia' 'Quase toda a memória RAM estava em uso. Quando ela acaba, o Windows passa a usar o disco, que é muito mais lento.' 'Fechar programas e abas que não estão em uso. Se acontecer sempre, aumentar a memória RAM.' 'Sem custo a médio' 'Usuário / técnico'
+    disco_ocupado  = Mk 'desemp' 2 'Disco trabalhando no limite' 'O disco ficou ocupado quase o tempo todo, o que faz o computador travar.' 'Trocar HD por SSD e verificar a saúde do disco; ver quais programas usam muito o disco.' 'Médio' 'Técnico'
+    inicializacao  = Mk 'desemp' 3 'Muitos programas abrindo junto com o Windows' 'Cada programa que abre sozinho deixa o computador mais lento para ligar e ocupa memória.' 'Desativar os desnecessários em Gerenciador de Tarefas > Aplicativos de inicialização.' 'Sem custo' 'Técnico'
+    rede_sem_placa = Mk 'rede' 1 'Computador sem conexão de rede' 'Nenhuma placa de rede está conectada.' 'Verificar o cabo de rede, o Wi-Fi e o driver da placa de rede.' 'Sem custo a baixo' 'Técnico'
+    rede_link      = Mk 'rede' 2 'Rede conectada em velocidade muito baixa' 'A placa de rede conectou em velocidade baixa, geralmente por cabo ruim ou porta do switch com defeito.' 'Trocar o cabo de rede e testar outra porta do switch.' 'Baixo' 'Técnico'
+    rede_nome      = Mk 'rede' 2 'Servidor não encontrado pelo nome' 'O computador não conseguiu achar o endereço do equipamento pelo nome.' 'Verificar o nome do servidor e a configuração de DNS da rede.' 'Sem custo' 'Técnico'
+    rede_instavel  = Mk 'rede' 1 'Comunicação com o servidor instável' 'Parte das informações enviadas ao servidor se perdeu. Isso faz o sistema travar, ficar lento ou perder a conexão.' 'Trocar o cabo, testar outra porta do switch e verificar o switch e a placa de rede. Evitar Wi-Fi para o sistema.' 'Baixo a médio' 'Técnico'
+    rede_lenta     = Mk 'rede' 2 'Rede lenta até o servidor' 'O tempo de resposta até o servidor está acima do esperado para essa rede.' 'Verificar cabos e switch, usar cabo em vez de Wi-Fi e comparar com outro computador da rede.' 'Baixo' 'Técnico'
+    rede_sem_resposta = Mk 'rede' 2 'Equipamento da rede não respondeu' 'Um equipamento testado não respondeu: pode estar desligado, fora da rede ou com firewall bloqueando o teste.' 'Confirmar se o equipamento está ligado e conectado e verificar o firewall dele.' 'Sem custo' 'Técnico'
+    internet_off   = Mk 'rede' 1 'Sem acesso à internet' 'O computador não conseguiu acessar a internet.' 'Verificar o roteador/modem e os cabos; se continuar, acionar o provedor.' 'Sem custo' 'Técnico'
+    internet_perda = Mk 'rede' 2 'Internet instável' 'Parte da comunicação com a internet se perdeu durante o teste.' 'Reiniciar o roteador/modem, verificar os cabos e, se continuar, acionar o provedor.' 'Sem custo' 'Técnico / provedor'
+    dns            = Mk 'rede' 2 'Problema para encontrar sites (DNS)' 'O computador não consegue traduzir o nome dos sites em endereços.' 'Configurar um DNS confiável (ex.: 8.8.8.8 e 1.1.1.1) ou verificar o roteador.' 'Sem custo' 'Técnico'
+}
+# Qual item do catalogo corresponde a cada alerta (pelo texto do alerta, na ordem)
+$PADROES = @(
+    @('tela\(s\) azul', 'bsod'), @('Kernel-Power 41', 'kp41'), @('WHEA', 'whea'), @('Diagnóstico de Memória.*ERROS', 'memerro'),
+    @('travamentos de programas', 'crash'), @('°C - acima do limite|°C \(limite', 'disco_temp'), @('vida útil consumida', 'ssd_desgaste'),
+    @("com status '|leitura/escrita não corrigidos|PREVÊ FALHA|erro de disco no log|com saúde '", 'disco_falha'),
+    @('HD mecânico', 'hdd_sistema'), @('pouco espaço livre', 'pouco_espaco'), @('GB de RAM', 'ram_pouca'), @('sem reiniciar', 'uptime'),
+    @('Windows 10: sem suporte', 'win10'), @('Windows 11 versão .* fora do suporte', 'win11old'), @('^Temperatura de .* acima de', 'cpu_temp'),
+    @('limitada pelo firmware', 'throttle'), @('Economia de energia', 'plano_energia'), @('Imagem do Windows com corrupção|SFC encontrou', 'win_corrompido'),
+    @('aguardando REINICIALIZAÇÃO', 'reboot_pend'), @('Nenhuma atualização instalada há', 'sem_update'), @('pendente\(s\)', 'update_pend'),
+    @('Processador com uso alto', 'cpu_alta'), @("^Processo '", 'proc_pesado'), @('Memória quase cheia', 'mem_cheia'), @('^Disco ocupado', 'disco_ocupado'),
+    @('iniciando com o Windows', 'inicializacao'), @('Nenhuma placa de rede', 'rede_sem_placa'), @('conectada a apenas', 'rede_link'),
+    @('resolver o nome', 'rede_nome'), @('de pacotes para a internet', 'internet_perda'), @('Sem acesso à internet', 'internet_off'),
+    @('DNS não está resolvendo', 'dns'), @('conexões com .* falharam|dos pacotes para', 'rede_instavel'),
+    @('lenta \(média|Ping mínimo para|Ping instável', 'rede_lenta'), @('^Sem resposta de', 'rede_sem_resposta')
+)
+function ChaveAlerta([string]$t) { foreach ($p in $PADROES) { if ($t -match $p[0]) { return $p[1] } }; 'outro' }
+
+function CalcularMelhorias {
+    $areaTipo = @{ hw = 'estab'; sw = 'windows'; perf = 'desemp'; net = 'rede' }
+    $lista = foreach ($g in ($Alertas | Group-Object Chave)) {
+        $c = $CAT[$g.Name]
+        if (-not $c) { $c = Mk $areaTipo[$g.Group[0].Tipo] 2 'Outro ponto de atenção' $g.Group[0].Texto 'Avaliar com o técnico.' 'A definir' 'Técnico' }
+        [pscustomobject]@{ Chave = $g.Name; Area = $c.Area; Prio = [int]$c.Prio; Titulo = $c.Titulo; Explica = $c.Explica; Acao = $c.Acao; Custo = $c.Custo; Quem = $c.Quem; Evidencias = @($g.Group | ForEach-Object { $_.Texto }) }
+    }
+    @($lista | Sort-Object Prio, Titulo)
+}
+function Pontuacao($mel) {
+    $p = 100
+    foreach ($m in $mel) { $p -= @{ 1 = 25; 2 = 10; 3 = 4 }[[int]$m.Prio] }
+    if (@($mel | Where-Object { $_.Prio -eq 1 }).Count) { $p = [math]::Min($p, 64) }   # problema urgente: no maximo "Regular"
+    [math]::Max(0, $p)
+}
+function Classe([int]$p) {
+    if ($p -ge 85)     { @{ Nome = 'Ótimo';   Cls = 'otimo';   Frase = 'O computador está em ótimo estado. Nenhuma ação urgente.' } }
+    elseif ($p -ge 70) { @{ Nome = 'Bom';     Cls = 'bom';     Frase = 'O computador está bem, com alguns pontos simples para melhorar.' } }
+    elseif ($p -ge 50) { @{ Nome = 'Regular'; Cls = 'regular'; Frase = 'O computador precisa de atenção. Veja abaixo o que fazer.' } }
+    else               { @{ Nome = 'Crítico'; Cls = 'critico'; Frase = 'O computador tem problemas sérios. Recomendamos agir o quanto antes.' } }
+}
+function StatusArea([string]$k) {
+    $ps = @($MELHORIAS | Where-Object { $_.Area -eq $k } | ForEach-Object { [int]$_.Prio })
+    if (-not $ps.Count) { 'ok' } elseif (($ps | Measure-Object -Minimum).Minimum -eq 1) { 'critico' } else { 'atencao' }
+}
+function StatusTexto([string]$s) { @{ ok = 'Tudo certo'; atencao = 'Atenção'; critico = 'Problema' }[$s] }
+$Config = [ordered]@{}   # configuracao da maquina (para o relatorio de melhorias)
 function Ev($log, $ids, $provRegex) {
     $h = @{ LogName = $log; StartTime = $desde }
     if ($ids) { $h.Id = $ids }
@@ -443,6 +552,10 @@ Item 'Placa-mãe'          "$($bb.Manufacturer) $($bb.Product)"
 Item 'Processador'        ("{0} ({1} núcleos / {2} threads)" -f $cpu.Name.Trim(), $cpu.NumberOfCores, $cpu.NumberOfLogicalProcessors)
 Item 'Memória RAM'        ("{0} GB  [{1} pente(s): {2}]" -f $ramGB, $pentes.Count, $descPentes)
 Item 'Ligada há'          ("{0} dia(s), {1} h {2} min (desde {3})" -f $up.Days, $up.Hours, $up.Minutes, $os.LastBootUpTime.ToString('dd/MM/yyyy HH:mm'))
+$Config['Computador']  = "$env:COMPUTERNAME - $($cs.Manufacturer) $($cs.Model)"
+$Config['Windows']     = "$($os.Caption) - versão $($cv.DisplayVersion)"
+$Config['Processador'] = "$($cpu.Name.Trim()) ($($cpu.NumberOfCores) núcleos)"
+$Config['Memória RAM'] = "$ramGB GB ($descPentes)"
 
 if ($ramGB -lt 8) { Alerta "Apenas $ramGB GB de RAM - pode ser insuficiente para o uso diário (recomendado 8 GB ou mais)." 'perf' }
 else { Ok "Quantidade de RAM adequada ($ramGB GB)." }
@@ -505,9 +618,12 @@ Secao '3. Disco (HD / SSD) - saúde, temperatura e espaço'
 $discoSistema = (Get-Partition -DriveLetter C | Get-Disk).Number
 $pds = @(Get-PhysicalDisk | Sort-Object { [int]$_.DeviceId })
 if (-not $pds.Count) { Info 'Não foi possível listar os discos (requer administrador).' }
+if (-not $isAdmin) { Nota 'disco' 'Saúde detalhada do disco não verificada (rode como administrador).' }
+$discosResumo = @()
 foreach ($d in $pds) {
     $mt = "$($d.MediaType)"; $bt = "$($d.BusType)"
     $tipo = if ($mt -in 'SSD', '4' -or $bt -in 'NVMe', '17') { 'SSD' } elseif ($mt -in 'HDD', '3') { 'HDD' } else { 'Desconhecido' }
+    $discosResumo += ('{0} - {1} {2}, {3} GB{4}' -f $d.FriendlyName, $tipo, $bt, [math]::Round($d.Size / 1GB), $(if ([int]$d.DeviceId -eq $discoSistema) { ' (Windows)' } else { '' }))
     $hs = "$($d.HealthStatus)"
     $hsPt = switch ($hs) { 'Healthy' { 'Saudável' } '0' { 'Saudável' } 'Warning' { 'AVISO' } '1' { 'AVISO' } 'Unhealthy' { 'COM FALHA' } '2' { 'COM FALHA' } default { $hs } }
     W ''
@@ -536,6 +652,7 @@ foreach ($d in $pds) {
     if ([int]$d.DeviceId -eq $discoSistema -and $tipo -eq 'HDD') { Alerta 'Windows instalado em HD mecânico - causa comum de lentidão. Recomendado trocar por SSD.' 'perf' }
 }
 
+if ($discosResumo.Count) { $Config['Discos'] = $discosResumo -join ' | ' }
 $fp = @(Get-CimInstance -Namespace root/wmi -ClassName MSStorageDriver_FailurePredictStatus | Where-Object { $_.PredictFailure })
 if ($fp.Count) { Alerta "O S.M.A.R.T. de $($fp.Count) disco(s) PREVÊ FALHA - fazer backup imediatamente e trocar o disco." 'hw' }
 
@@ -551,6 +668,7 @@ foreach ($v in @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3')) {
     if (-not $v.Size) { continue }
     $livreGB = [math]::Round($v.FreeSpace / 1GB, 1); $pct = [math]::Round($v.FreeSpace / $v.Size * 100)
     W ('      {0}  {1,8} GB livres de {2,6} GB  ({3}% livre)' -f $v.DeviceID, $livreGB, [math]::Round($v.Size / 1GB), $pct)
+    if ($v.DeviceID -eq 'C:') { $Config['Espaço livre no C:'] = '{0} GB livres de {1} GB ({2}%)' -f $livreGB, [math]::Round($v.Size / 1GB), $pct }
     if ($pct -lt 10 -or ($v.DeviceID -eq 'C:' -and $livreGB -lt 15)) { Alerta "Unidade $($v.DeviceID) com pouco espaço livre ($livreGB GB / $pct%) - causa lentidão e falha em atualizações." 'perf' }
 }
 
@@ -602,6 +720,7 @@ if ($temps.Count) {
     else { Ok "Temperatura dentro do limite de $LIM_CPU °C (sensor ACPI é aproximado - confirmar no HWMonitor)." }
 } else {
     Info 'O Windows não expõe a temperatura do processador nesta máquina - confira no HWMonitor (oferecido no final).'
+    Nota 'temp' 'Temperatura não informada pelo Windows - conferir no HWMonitor.'
 }
 $thr = Ev 'System' 37 'Kernel-Processor-Power'
 if ($thr.Count) { Alerta "Velocidade do processador foi limitada pelo firmware $($thr.Count) vez(es) - comum em superaquecimento ou modo de economia de energia." 'perf' }
@@ -636,6 +755,7 @@ if ($isAdmin) {
     } else { Info 'SFC não executado (opção N). Para verificar manualmente: sfc /scannow' }
 } else {
     Info 'Requer administrador - integridade do Windows não verificada.'
+    Nota 'windows' 'Integridade dos arquivos do Windows não verificada (rode como administrador).'
 }
 
 # --------------------------------------------------------------------
@@ -664,6 +784,7 @@ if ($jobWU.State -eq 'Completed') {
     } else { Ok 'Nenhuma atualização pendente.' }
 } else {
     Info 'O Windows Update não respondeu a tempo. Verifique manualmente em Configurações > Windows Update.'
+    Nota 'windows' 'Windows Update não respondeu a tempo - atualizações não verificadas.'
     Stop-Job $jobWU
 }
 Remove-Job $jobWU -Force
@@ -813,9 +934,15 @@ foreach ($tAlvo in @(@($alvos | Select-Object -First 1) + 'google.com.br')) {
 [Console]::OutputEncoding = $encAnt
 
 # --------------------------------------------------------------------
-#  RESUMO
+#  RESUMO, NOTA E MELHORIAS
 # --------------------------------------------------------------------
+$MELHORIAS = @(CalcularMelhorias)
+$NOTA      = Pontuacao $MELHORIAS
+$CLASSE    = Classe $NOTA
+
 Secao 'Resumo e interpretação dos resultados'
+Item 'Nota da máquina' ("{0}/100 - {1}" -f $NOTA, $CLASSE.Nome)
+foreach ($k in $AREAS.Keys) { Item $AREAS[$k].Nome (StatusTexto (StatusArea $k)) }
 if (-not $Alertas.Count) { Ok 'Nenhum problema evidente encontrado nos testes automáticos.' }
 foreach ($k in $GRUPOS.Keys) {
     $itens = @($Alertas | Where-Object { $_.Tipo -eq $k })
@@ -833,6 +960,14 @@ $REFS = "Referências: CPU até $LIM_CPU °C | HD até $LIM_HDD °C | SSD até $
 W ''
 W "  $REFS" 'DarkGray'
 
+Secao 'Melhorias recomendadas'
+if (-not $MELHORIAS.Count) { Ok 'Nenhuma correção necessária. Seguir as boas práticas de manutenção preventiva.' }
+foreach ($m in $MELHORIAS) {
+    W ("  [{0}] {1}" -f $PRIO[$m.Prio].Nome.ToUpper(), $m.Titulo) 'Yellow'
+    W "      O que fazer: $($m.Acao)"
+    W "      Investimento: $($m.Custo)  |  Quem faz: $($m.Quem)"
+}
+
 if ($cdiTexto) {
     $L.Add(''); $L.Add('=' * 74); $L.Add('  ANEXO - RELATÓRIO COMPLETO DO CRYSTALDISKINFO'); $L.Add('=' * 74)
     foreach ($ln in $cdiTexto) { $L.Add($ln) }
@@ -840,23 +975,83 @@ if ($cdiTexto) {
 }
 
 # --------------------------------------------------------------------
-#  RELATORIO FORMATADO (HTML -> PDF pelo Microsoft Edge)
+#  RELATORIOS FORMATADOS (HTML -> PDF pelo Microsoft Edge)
 # --------------------------------------------------------------------
 function Hx([string]$s) { [Net.WebUtility]::HtmlEncode($s) }
-function GerarHtml {
-    $css = @'
-@page { size: A4; margin: 13mm 12mm; }
-:root { --azul:#1f4e79; --verde:#1e7b34; --amarelo:#a15c07; --vermelho:#b42318; --cinza:#5f6b7a; --borda:#d9dee5; }
-* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; color: #1d2733; background: #fff; margin: 0; }
-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--azul); padding-bottom: 8px; margin-bottom: 10px; }
-h1 { font-size: 16pt; margin: 0; color: var(--azul); }
-.sub { color: var(--cinza); font-size: 9pt; margin-top: 3px; }
-.selo { font-weight: 700; padding: 7px 14px; border-radius: 6px; font-size: 10pt; white-space: nowrap; }
-.selo.ok { background: #e6f4ea; color: var(--verde); } .selo.warn { background: #fff4e0; color: var(--amarelo); } .selo.hw { background: #fdecea; color: var(--vermelho); }
-h2 { font-size: 11pt; color: #fff; background: var(--azul); padding: 4px 9px; border-radius: 4px; margin: 14px 0 6px; break-after: avoid; }
-h3 { font-size: 10pt; margin: 8px 0 3px; }
-h4 { font-size: 9.5pt; margin: 9px 0 3px; color: var(--azul); break-after: avoid; }
+
+# Logo: logo.png / logo.jpg / logo.svg na pasta do .bat (embutida no PDF)
+$logoUri = $null
+if ($batDir) {
+    foreach ($n in 'logo.png', 'logo.jpg', 'logo.jpeg', 'logo.svg') {
+        $lp = Join-Path $batDir $n
+        if (Test-Path -LiteralPath $lp) {
+            $mime = @{ '.png' = 'image/png'; '.jpg' = 'image/jpeg'; '.jpeg' = 'image/jpeg'; '.svg' = 'image/svg+xml' }[[IO.Path]::GetExtension($lp).ToLower()]
+            $logoUri = "data:$mime;base64," + [Convert]::ToBase64String([IO.File]::ReadAllBytes($lp))
+            break
+        }
+    }
+}
+
+$CSS = @'
+@page { size: A4; margin: 11mm 12mm 13mm; }
+:root { --escuro:#0b1220; --azul:#1f4e79; --ciano:#0ea5c6; --verde:#1e7b34; --amarelo:#a15c07; --vermelho:#b42318; --cinza:#5f6b7a; --borda:#d9dee5; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; color: #1d2733; background: #fff; margin: 0; line-height: 1.4; }
+.topo { display: flex; align-items: center; gap: 20px; background: linear-gradient(120deg, #0b1220 0%, #12233d 55%, #0c3b52 100%); color: #fff; border-radius: 10px; padding: 10px 22px; margin-bottom: 14px; }
+.topo img { height: 100px; }
+.topo .marca { font-size: 22pt; font-weight: 800; letter-spacing: 2px; color: #67e8f9; }
+.topo .t1 { font-size: 18pt; font-weight: 700; }
+.topo .t2 { color: #b6c6dc; font-size: 9.5pt; margin-top: 4px; }
+.topo .t3 { color: #67e8f9; font-size: 9.5pt; margin-top: 2px; }
+h2 { font-size: 12pt; color: var(--escuro); border-bottom: 2px solid var(--ciano); padding-bottom: 3px; margin: 16px 0 8px; break-after: avoid; }
+h2 .leg { font-size: 9pt; font-weight: 400; color: var(--cinza); }
+p { margin: 4px 0; }
+.legenda { color: var(--cinza); font-size: 8.3pt; }
+.nota { display: flex; align-items: center; gap: 20px; border: 1px solid var(--borda); border-radius: 10px; padding: 12px 20px; break-inside: avoid; }
+.nota .num { font-size: 38pt; font-weight: 800; line-height: 1; white-space: nowrap; }
+.nota .num span { font-size: 13pt; color: var(--cinza); font-weight: 600; }
+.nota .info { flex: 1; }
+.nota .cl { font-size: 14pt; font-weight: 700; }
+.nota .frase { color: #3b4756; margin: 2px 0 8px; font-size: 10pt; }
+.barra { height: 11px; background: #e9edf2; border-radius: 6px; overflow: hidden; }
+.barra i { display: block; height: 100%; border-radius: 6px; }
+.c-otimo .num, .c-otimo .cl { color: var(--verde); } .c-otimo .barra i { background: #22a447; }
+.c-bom .num, .c-bom .cl { color: #0e7490; } .c-bom .barra i { background: #14a3c7; }
+.c-regular .num, .c-regular .cl { color: var(--amarelo); } .c-regular .barra i { background: #f59e0b; }
+.c-critico .num, .c-critico .cl { color: var(--vermelho); } .c-critico .barra i { background: #dc2626; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.card { border: 1px solid var(--borda); border-left: 6px solid; border-radius: 8px; padding: 7px 11px; break-inside: avoid; }
+.card .ch { display: flex; align-items: center; gap: 8px; }
+.card .ch b { flex: 1; font-size: 10pt; }
+.dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.card .lbl { font-size: 8pt; font-weight: 700; padding: 1px 9px; border-radius: 10px; }
+.card .cb { color: #3b4756; font-size: 8.8pt; margin-top: 3px; }
+.card ul { margin: 2px 0 0; padding-left: 16px; }
+.card .nt { color: var(--cinza); font-style: italic; font-size: 8pt; margin-top: 3px; }
+.s-ok { border-left-color: #22a447; } .s-ok .dot { background: #22a447; } .s-ok .lbl { background: #e6f4ea; color: var(--verde); }
+.s-atencao { border-left-color: #f59e0b; } .s-atencao .dot { background: #f59e0b; } .s-atencao .lbl { background: #fff4e0; color: var(--amarelo); }
+.s-critico { border-left-color: #dc2626; } .s-critico .dot { background: #dc2626; } .s-critico .lbl { background: #fdecea; color: var(--vermelho); }
+.achado { border: 1px solid var(--borda); border-left: 5px solid; border-radius: 8px; padding: 8px 12px; margin: 7px 0; break-inside: avoid; }
+.achado .ah { display: flex; align-items: center; gap: 9px; margin-bottom: 3px; }
+.achado .ah b { font-size: 10.5pt; }
+.pr { font-size: 7.5pt; font-weight: 700; padding: 2px 9px; border-radius: 10px; text-transform: uppercase; letter-spacing: .5px; flex: none; }
+.p1 { border-left-color: #dc2626; } .p1 .pr { background: #fdecea; color: var(--vermelho); }
+.p2 { border-left-color: #f59e0b; } .p2 .pr { background: #fff4e0; color: var(--amarelo); }
+.p3 { border-left-color: #38bdf8; } .p3 .pr { background: #e0f2fe; color: #0369a1; }
+.faz { background: #f1f7fb; border-radius: 6px; padding: 5px 9px; margin-top: 5px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { font-size: 8pt; background: #eef1f4; color: #334155; border-radius: 10px; padding: 1px 10px; }
+.evid { color: var(--cinza); font-size: 7.8pt; margin-top: 5px; }
+.ok-geral { background: #e6f4ea; color: var(--verde); border-radius: 8px; padding: 10px 14px; font-weight: 600; }
+table.t { width: 100%; border-collapse: collapse; margin: 4px 0; break-inside: avoid; }
+table.t th { background: var(--escuro); color: #fff; font-weight: 600; text-align: left; padding: 5px 8px; font-size: 8.8pt; }
+table.t td { padding: 5px 8px; border-bottom: 1px solid #e6eaef; vertical-align: top; }
+table.cfg td:first-child { color: var(--cinza); width: 165px; }
+ul.boas { margin: 4px 0; padding-left: 18px; } ul.boas li { margin: 3px 0; }
+.quebra { break-before: page; }
+.tec h1 { font-size: 15pt; color: var(--escuro); margin: 0 0 2px; }
+.tec h2 { font-size: 10.5pt; color: #fff; background: var(--azul); border: 0; padding: 4px 9px; border-radius: 4px; margin: 14px 0 6px; }
+.tec h4 { font-size: 9.5pt; margin: 9px 0 3px; color: var(--azul); break-after: avoid; }
 .kv { display: grid; grid-template-columns: 215px 1fr; gap: 8px; padding: 2px 4px; border-bottom: 1px solid #eef1f4; break-inside: avoid; }
 .kv span:first-child { color: var(--cinza); } .kv.sub span:first-child { padding-left: 14px; }
 .st { display: flex; gap: 8px; align-items: flex-start; padding: 3px 4px; break-inside: avoid; }
@@ -864,48 +1059,59 @@ h4 { font-size: 9.5pt; margin: 9px 0 3px; color: var(--azul); break-after: avoid
 .st.ok b { background: #e6f4ea; color: var(--verde); } .st.al b { background: #fff1d6; color: var(--amarelo); } .st.in b { background: #eef1f4; color: var(--cinza); }
 .st.al span { font-weight: 600; }
 pre { font-family: Consolas, 'Courier New', monospace; font-size: 7.6pt; background: #f6f8fa; border: 1px solid var(--borda); border-radius: 4px; padding: 6px 8px; margin: 4px 0; white-space: pre-wrap; word-break: break-word; }
-.grupo { border-left: 4px solid; padding: 4px 10px; margin: 6px 0; background: #fafbfc; break-inside: avoid; }
-.g-hw { border-color: var(--vermelho); } .g-sw { border-color: #6941c6; } .g-perf { border-color: var(--amarelo); } .g-net { border-color: #1570ef; }
-.grupo ul, ul.concl { margin: 3px 0; padding-left: 18px; } li { margin: 2px 0; }
-.ref { color: var(--cinza); font-size: 8pt; }
-.okmsg { color: var(--verde); font-weight: 600; }
-footer { color: var(--cinza); font-size: 7.5pt; text-align: center; margin-top: 14px; border-top: 1px solid var(--borda); padding-top: 5px; }
+footer { color: var(--cinza); font-size: 7.5pt; text-align: center; margin-top: 16px; border-top: 1px solid var(--borda); padding-top: 5px; }
 '@
+
+function InicioHtml([string]$titulo) {
+    $marca = if ($logoUri) { "<img src='$logoUri' alt='$(Hx $EMPRESA)'>" } else { "<div class='marca'>$(Hx $EMPRESA)</div>" }
+    $s = "<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><title>$(Hx $titulo) - $(Hx $env:COMPUTERNAME)</title><style>$CSS</style></head><body>"
+    $s += "<div class='topo'>$marca<div><div class='t1'>$(Hx $titulo)</div><div class='t2'>Computador: $(Hx $env:COMPUTERNAME) &nbsp;·&nbsp; $(Get-Date -Format 'dd/MM/yyyy HH:mm')</div>"
+    if ($sintoma) { $s += "<div class='t3'>Problema relatado: $(Hx $sintoma)</div>" }
+    $s + '</div></div>'
+}
+function RodapeHtml { "<footer>$(Hx $EMPRESA) &nbsp;·&nbsp; $(Hx $SLOGAN) &nbsp;·&nbsp; relatório gerado automaticamente em $(Get-Date -Format 'dd/MM/yyyy HH:mm')</footer></body></html>" }
+function NotaHtml {
+    "<div class='nota c-$($CLASSE.Cls)'><div class='num'>$NOTA<span>/100</span></div><div class='info'><div class='cl'>Nota da máquina: $(Hx $CLASSE.Nome)</div><div class='frase'>$(Hx $CLASSE.Frase)</div><div class='barra'><i style='width:$([math]::Max(3, $NOTA))%'></i></div></div></div>"
+}
+function AchadoHtml($m, [switch]$Completo) {
+    $pr = $PRIO[[int]$m.Prio]
+    $s = "<div class='achado $($pr.Cls)'><div class='ah'><span class='pr'>$($pr.Nome)</span><b>$(Hx $m.Titulo)</b></div><p>$(Hx $m.Explica)</p><div class='faz'><b>O que fazer:</b> $(Hx $m.Acao)</div>"
+    if ($Completo) {
+        $s += "<div class='chips'><span class='chip'>Investimento: $(Hx $m.Custo)</span><span class='chip'>Quem faz: $(Hx $m.Quem)</span><span class='chip'>Área: $(Hx $AREAS[$m.Area].Nome)</span></div>"
+        $s += "<div class='evid'><b>O que a análise encontrou:</b> " + (($m.Evidencias | ForEach-Object { Hx $_ }) -join ' &nbsp;·&nbsp; ') + '</div>'
+    }
+    $s + '</div>'
+}
+
+# ---------- Relatorio de analise ----------
+function GerarHtml {
     $sb = New-Object Text.StringBuilder
     $add = { param($s) [void]$sb.Append($s) }
-    & $add "<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><title>Análise $(Hx $env:COMPUTERNAME)</title><style>$css</style></head><body>"
+    & $add (InicioHtml 'Relatório de análise da máquina')
+    & $add (NotaHtml)
 
-    # Cabecalho com selo de status
-    $nHw = @($Alertas | Where-Object { $_.Tipo -eq 'hw' }).Count
-    if (-not $Alertas.Count) { $selo = 'ok'; $seloTxt = 'Sem problemas aparentes' }
-    elseif ($nHw) { $selo = 'hw'; $seloTxt = "$($Alertas.Count) alerta(s) - possível falha física" }
-    else { $selo = 'warn'; $seloTxt = "$($Alertas.Count) alerta(s)" }
-    $sub = "$(Hx $env:COMPUTERNAME) · $(Get-Date -Format 'dd/MM/yyyy HH:mm')"
-    if ($sintoma) { $sub += " · Sintoma: $(Hx $sintoma)" }
-    & $add "<header><div><h1>Relatório de análise da máquina</h1><div class='sub'>$sub</div></div><div class='selo $selo'>$(Hx $seloTxt)</div></header>"
-
-    # Resumo no topo
-    & $add "<h2>Resumo e conclusão</h2>"
-    if (-not $Alertas.Count) { & $add "<p class='okmsg'>Nenhum problema evidente encontrado nos testes automáticos.</p>" }
-    foreach ($k in $GRUPOS.Keys) {
-        $itens = @($Alertas | Where-Object { $_.Tipo -eq $k })
-        if (-not $itens.Count) { continue }
-        & $add "<div class='grupo g-$k'><h3>$(Hx $GRUPOS[$k]) ($($itens.Count))</h3><ul>"
-        foreach ($it in $itens) { & $add "<li>$(Hx $it.Texto)</li>" }
-        & $add '</ul></div>'
+    & $add "<h2>Painel de saúde <span class='leg'>&nbsp;verde = tudo certo · amarelo = atenção · vermelho = resolver logo</span></h2><div class='cards'>"
+    foreach ($k in $AREAS.Keys) {
+        $st = StatusArea $k
+        $ms = @($MELHORIAS | Where-Object { $_.Area -eq $k })
+        $corpo = if ($ms.Count) { '<ul>' + (($ms | ForEach-Object { "<li>$(Hx $_.Titulo)</li>" }) -join '') + '</ul>' } else { Hx $AREAS[$k].Ok }
+        $nt = if ($NOTAS.ContainsKey($k)) { ($NOTAS[$k] | ForEach-Object { "<div class='nt'>$(Hx $_)</div>" }) -join '' } else { '' }
+        & $add "<div class='card s-$st'><div class='ch'><span class='dot'></span><b>$(Hx $AREAS[$k].Nome)</b><span class='lbl'>$(StatusTexto $st)</span></div><div class='cb'>$corpo</div>$nt</div>"
     }
-    $tps = @($Alertas | ForEach-Object { $_.Tipo } | Select-Object -Unique)
-    & $add '<h3>Conclusão</h3><ul class="concl">'
-    foreach ($k in $CONCL.Keys) { if ($k -in $tps) { & $add "<li>$(Hx $CONCL[$k])</li>" } }
-    if (-not $tps.Count) { & $add "<li>$(Hx $CONCL_OK)</li>" }
-    & $add "</ul><p class='ref'>$(Hx $REFS)</p>"
+    & $add '</div>'
 
-    # Demais secoes, na ordem em que foram analisadas
+    & $add '<h2>O que encontramos, em palavras simples</h2>'
+    if (-not $MELHORIAS.Count) { & $add "<div class='ok-geral'>Nenhum problema foi encontrado. $(Hx $CONCL_OK)</div>" }
+    foreach ($m in $MELHORIAS) { & $add (AchadoHtml $m) }
+    if ($MELHORIAS.Count) { & $add "<p class='legenda'>O plano completo, com investimento estimado e quem faz cada item, está no <b>Relatório de melhorias</b>.</p>" }
+
+    # Detalhes tecnicos (tudo o que foi coletado), a partir de uma nova pagina
+    & $add "<div class='tec quebra'><h1>Detalhes técnicos</h1><p class='legenda'>Dados completos coletados na análise, para uso do técnico.</p>"
     $pre = New-Object System.Collections.Generic.List[string]
     $fechaPre = { if ($pre.Count) { & $add ('<pre>' + (Hx ($pre -join "`n")) + '</pre>'); $pre.Clear() } }
     $pular = $false
     foreach ($e in $Rel) {
-        if ($e.T -eq 'sec') { & $fechaPre; $pular = ($e.X -like 'Resumo*'); if (-not $pular) { & $add "<h2>$(Hx $e.X)</h2>" }; continue }
+        if ($e.T -eq 'sec') { & $fechaPre; $pular = ($e.X -like 'Resumo*' -or $e.X -like 'Melhorias*'); if (-not $pular) { & $add "<h2>$(Hx $e.X)</h2>" }; continue }
         if ($pular) { continue }
         if ($e.T -eq 'txt') {
             $x = $e.X -replace '^  ', ''
@@ -925,7 +1131,52 @@ footer { color: var(--cinza); font-size: 7.5pt; text-align: center; margin-top: 
         }
     }
     & $fechaPre
-    & $add "<footer>Gerado por Analisar-Maquina.bat · baseado no artigo &quot;Como analisar uma máquina&quot;</footer></body></html>"
+    & $add "<p class='legenda'>$(Hx $REFS)</p></div>"
+    & $add (RodapeHtml)
+    $sb.ToString()
+}
+
+# ---------- Relatorio de melhorias ----------
+$BOAS = @(
+    'Fazer backup dos arquivos importantes pelo menos uma vez por semana (HD externo, pen drive ou nuvem).',
+    'Reiniciar o computador pelo menos uma vez por semana.',
+    'Manter o Windows e o antivírus sempre atualizados.',
+    'Fazer limpeza interna (poeira e ventoinhas) a cada 6 a 12 meses.',
+    'Usar nobreak ou estabilizador para proteger contra quedas de energia.',
+    'Evitar instalar programas desconhecidos e deixar só o necessário abrindo com o Windows.',
+    'Repetir esta análise a cada 6 meses ou sempre que notar lentidão.'
+)
+function GerarHtmlMelhorias {
+    $sb = New-Object Text.StringBuilder
+    $add = { param($s) [void]$sb.Append($s) }
+    & $add (InicioHtml 'Relatório de melhorias')
+    & $add (NotaHtml)
+    & $add "<p style='margin-top:10px'>Com base na análise feita neste computador, listamos o que pode ser feito para deixá-lo <b>mais rápido, estável e seguro</b>, em ordem de prioridade.</p>"
+
+    if ($MELHORIAS.Count) {
+        & $add "<h2>Resumo do plano</h2><table class='t'><tr><th>#</th><th>Melhoria</th><th>Prioridade</th><th>Investimento</th><th>Quem faz</th></tr>"
+        $i = 0
+        foreach ($m in $MELHORIAS) { $i++; & $add "<tr><td>$i</td><td>$(Hx $m.Titulo)</td><td class='$($PRIO[$m.Prio].Cls)'><span class='pr'>$($PRIO[$m.Prio].Nome)</span></td><td>$(Hx $m.Custo)</td><td>$(Hx $m.Quem)</td></tr>" }
+        & $add '</table>'
+        foreach ($p in 1, 2, 3) {
+            $ms = @($MELHORIAS | Where-Object { $_.Prio -eq $p })
+            if (-not $ms.Count) { continue }
+            & $add "<h2>$($PRIO[$p].Grupo) <span class='leg'>&nbsp;$($PRIO[$p].Desc)</span></h2>"
+            foreach ($m in $ms) { & $add (AchadoHtml $m -Completo) }
+        }
+    } else {
+        & $add "<div class='ok-geral' style='margin-top:10px'>Nenhuma correção é necessária no momento. Para manter o computador assim, siga as boas práticas abaixo.</div>"
+    }
+
+    & $add "<h2>Configuração atual do computador</h2><table class='t cfg'>"
+    foreach ($k in $Config.Keys) { & $add "<tr><td>$(Hx $k)</td><td>$(Hx $Config[$k])</td></tr>" }
+    & $add '</table>'
+
+    & $add "<h2>Manutenção preventiva (boas práticas)</h2><ul class='boas'>"
+    foreach ($b in $BOAS) { & $add "<li>$(Hx $b)</li>" }
+    & $add '</ul>'
+    & $add "<p class='legenda'><b>Investimento estimado:</b> Sem custo = só configuração ou limpeza de arquivos · Baixo = até cerca de R$ 150 · Médio = cerca de R$ 150 a R$ 600 · Alto = acima de R$ 600. Valores aproximados; confirme sempre em orçamento.</p>"
+    & $add (RodapeHtml)
     $sb.ToString()
 }
 
@@ -945,9 +1196,15 @@ function HtmlParaPdf([string]$html, [string]$pdf) {
     Remove-Item -LiteralPath $perfil -Recurse -Force -ErrorAction SilentlyContinue
     (Test-Path -LiteralPath $pdf) -and ((Get-Item -LiteralPath $pdf).Length -gt 1000)
 }
+function SalvarRelatorio([string]$conteudo, [string]$base) {
+    $html = "$base.html"; $pdf = "$base.pdf"
+    [IO.File]::WriteAllText($html, $conteudo, (New-Object Text.UTF8Encoding $true))
+    if (HtmlParaPdf $html $pdf) { Remove-Item -LiteralPath $html -Force; return $pdf }
+    return $html
+}
 
 # --------------------------------------------------------------------
-#  SALVAR RELATORIO
+#  SALVAR RELATORIOS
 # --------------------------------------------------------------------
 $nome = 'Analise_{0}_{1}' -f $env:COMPUTERNAME, (Get-Date -Format 'yyyy-MM-dd_HH-mm')
 $destinos = @()
@@ -964,18 +1221,19 @@ foreach ($dst in $destinos) {
 }
 Write-Host ''
 if ($arq) {
-    $html = [IO.Path]::ChangeExtension($arq, '.html')
-    $pdf  = [IO.Path]::ChangeExtension($arq, '.pdf')
-    $abrir = $arq
+    $pastaRel = Split-Path -Parent $arq
+    $abrir = @()
     try {
-        [IO.File]::WriteAllText($html, (GerarHtml), (New-Object Text.UTF8Encoding $true))
-        Write-Host '  Gerando o PDF...' -ForegroundColor Cyan
-        if (HtmlParaPdf $html $pdf) { Remove-Item -LiteralPath $html -Force; $abrir = $pdf }
-        else { Write-Host '  Não foi possível gerar o PDF (Edge/Chrome não encontrado) - relatório salvo em HTML.' -ForegroundColor Yellow; $abrir = $html }
-    } catch { Write-Host "  Erro ao gerar o relatório formatado: $($_.Exception.Message)" -ForegroundColor Yellow }
-    Write-Host "  Relatório salvo em: $abrir" -ForegroundColor Green
-    if ($abrir -ne $arq) { Write-Host "  (versão em texto: $arq)" -ForegroundColor DarkGray }
-    if (-not $auto) { Start-Process -FilePath $abrir }
+        Write-Host '  Gerando os relatórios em PDF...' -ForegroundColor Cyan
+        $abrir += SalvarRelatorio (GerarHtml) (Join-Path $pastaRel $nome)
+        $abrir += SalvarRelatorio (GerarHtmlMelhorias) (Join-Path $pastaRel ($nome -replace '^Analise_', 'Melhorias_'))
+    } catch { Write-Host "  Erro ao gerar os relatórios formatados: $($_.Exception.Message)" -ForegroundColor Yellow }
+    if (@($abrir | Where-Object { $_ -like '*.html' }).Count) { Write-Host '  Edge/Chrome não encontrado - relatórios salvos em HTML (abrem no navegador).' -ForegroundColor Yellow }
+    if (-not $abrir.Count) { $abrir = @($arq) }
+    Write-Host ("  Nota da máquina: {0}/100 - {1}" -f $NOTA, $CLASSE.Nome) -ForegroundColor Cyan
+    foreach ($a in $abrir) { Write-Host "  Salvo: $a" -ForegroundColor Green }
+    Write-Host "  (versão em texto: $arq)" -ForegroundColor DarkGray
+    if (-not $auto) { foreach ($a in $abrir) { Start-Process -FilePath $a } }
 } else { Write-Host '  Não foi possível salvar o relatório.' -ForegroundColor Red }
 
 # --------------------------------------------------------------------
