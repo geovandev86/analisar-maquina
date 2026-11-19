@@ -15,7 +15,7 @@ Script `.bat` que faz sozinho o checklist do artigo **"Como analisar uma máquin
 
 ## Sua logo nos relatórios
 
-Coloque a logo da sua empresa como `logo.png` (ou `.jpg` / `.svg`) na mesma pasta do `.bat`. O nome da empresa e a frase do rodapé ficam nas variáveis `$EMPRESA` e `$SLOGAN`, no começo da parte PowerShell do `.bat`. A logo não vai para o repositório (está no `.gitignore`).
+Os relatórios usam a logo `logo.png` que está na mesma pasta do `.bat` (a logo da GL Tech já vem no repositório). Para usar outra, substitua esse arquivo (também aceita `logo.jpg` ou `logo.svg`). O nome da empresa e a frase do rodapé ficam nas variáveis `$EMPRESA` e `$SLOGAN`, no começo da parte PowerShell do `.bat`.
 
 > Se aparecer "O Windows protegeu o computador", clique em **Mais informações > Executar assim mesmo**.
 
